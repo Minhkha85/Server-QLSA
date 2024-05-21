@@ -7,7 +7,7 @@ const path = require('path');
 const User = require('./models/user'); // Ensure this is the correct path to your User model
 
 const app = express();
-const PORT = 5000;
+const PORT = 5001;
 
 // Middleware
 app.use(cors());
