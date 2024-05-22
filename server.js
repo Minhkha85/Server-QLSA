@@ -88,6 +88,7 @@ const auth = new google.auth.GoogleAuth({
 
 // Route to export users to Google Sheets
 app.post('/api/export', async (req, res) => {
+  const { startDate, endDate } = req.body;
   try {
     const authClient = await auth.getClient();
     const spreadsheetId = '1bVkZ_Wubzmx4xnQzQicyOOGntTQXBfblyaZFWpBTzpg'; // Replace with your Google Sheets ID
@@ -98,7 +99,15 @@ app.post('/api/export', async (req, res) => {
       const year = date.getFullYear();
       return `${day}/${month}/${year}`;
     };
-    const users = await User.find();
+    let query = {};
+    if (startDate && endDate) {
+      query.ngay = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else if (startDate) {
+      query.ngay = { $gte: new Date(startDate) };
+    } else if (endDate) {
+      query.ngay = { $lte: new Date(endDate) };
+    }
+    const users = await User.find(query);
     const userData = users.map(user => [user.manv, user.hoten,formatDate(user.ngay), user.xuong, user.trangthai ? 'Đã Nhận' : 'Chưa Nhận']);
 
     const request = {
