@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   xuong: { type: String, required: true },
   trangthai: { type: Boolean, required: true },
   ngay: { type: Date, required: true },
+  additionalInfo:{ type: String},
 });
 
 const User = mongoose.model('User', userSchema);

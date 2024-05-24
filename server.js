@@ -4,7 +4,8 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const { google } = require('googleapis');
 const path = require('path');
-const User = require('./models/user'); // Ensure this is the correct path to your User model
+const User = require('./models/user');
+const MealTotal = require('./models/mealTotal'); // Import the new model
 
 const app = express();
 const PORT = 5000;
@@ -35,7 +36,18 @@ app.get('/api/users', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   const user = new User(req.body);
+  const date = req.body.ngay;
+
   try {
+    // Check and decrement the meal total
+    const mealTotal = await MealTotal.findOne({ date });
+    if (!mealTotal || mealTotal.totalMeals <= 0) {
+      return res.status(400).json({ message: 'No meals available' });
+    }
+
+    mealTotal.totalMeals -= 1;
+    await mealTotal.save();
+
     const newUser = await user.save();
     res.status(201).json(newUser);
   } catch (err) {
@@ -76,11 +88,40 @@ app.delete('/api/users', async (req, res) => {
   }
 });
 
+// Routes for meal totals
+app.post('/api/meal-total', async (req, res) => {
+  const { date, totalMeals } = req.body;
+  try {
+    const existingMealTotal = await MealTotal.findOne({ date });
+    if (existingMealTotal) {
+      return res.status(400).json({ message: 'Total meals for this date have already been set' });
+    }
+
+    const newMealTotal = new MealTotal({ date, totalMeals, mealsLeft: totalMeals });
+    await newMealTotal.save();
+    res.status(201).json(newMealTotal);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.get('/api/meal-total/:date', async (req, res) => {
+  try {
+    const mealTotal = await MealTotal.findOne({ date: req.params.date });
+    if (!mealTotal) {
+      return res.status(404).json({ message: 'No meal total found for this date' });
+    }
+    res.json(mealTotal);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Google Sheets API Setup
 const sheets = google.sheets('v4');
 
-// Sử dụng đường dẫn tuyệt đối để chỉ định tệp JSON của khóa dịch vụ
-const keyFilePath = './sever.json';
+// Use absolute path to specify the service account JSON file
+const keyFilePath = path.join(__dirname, 'sever.json');
 const auth = new google.auth.GoogleAuth({
   keyFile: keyFilePath,
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -108,14 +149,14 @@ app.post('/api/export', async (req, res) => {
       query.ngay = { $lte: new Date(endDate) };
     }
     const users = await User.find(query);
-    const userData = users.map(user => [user.manv, user.hoten,formatDate(user.ngay), user.xuong, user.trangthai ? 'Đã Nhận' : 'Chưa Nhận']);
+    const userData = users.map(user => [user.manv, user.hoten, formatDate(user.ngay), user.xuong, user.additionalInfo, user.trangthai ? 'Đã Nhận' : 'Chưa Nhận']);
 
     const request = {
       spreadsheetId,
       range: 'Sheet1!A1', // Replace with the correct range
       valueInputOption: 'RAW',
       resource: {
-        values: [['Mã Nhân viên', 'Họ Tên','Ngày', 'Xưởng', 'Trạng Thái'], ...userData],
+        values: [['Mã Nhân viên', 'Họ Tên', 'Ngày', 'Xưởng', 'Ghi Chú', 'Trạng Thái'], ...userData],
       },
       auth: authClient,
     };
