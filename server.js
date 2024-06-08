@@ -6,7 +6,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const User = require('./models/user');
 const MealTotal = require('./models/mealTotal'); // Import the new model
-
+//const ip = 'localhost';
 const app = express();
 const PORT = 5000;
 
@@ -41,11 +41,11 @@ app.post('/api/users', async (req, res) => {
   try {
     // Check and decrement the meal total
     const mealTotal = await MealTotal.findOne({ date });
-    if (!mealTotal || mealTotal.totalMeals <= 0) {
+    if (!mealTotal || mealTotal.mealsLeft <= 0) {
       return res.status(400).json({ message: 'No meals available' });
     }
 
-    mealTotal.totalMeals -= 1;
+    mealTotal.mealsLeft -= 1;
     await mealTotal.save();
 
     const newUser = await user.save();
@@ -111,11 +111,15 @@ app.get('/api/meal-total/:date', async (req, res) => {
     if (!mealTotal) {
       return res.status(404).json({ message: 'No meal total found for this date' });
     }
-    res.json(mealTotal);
+    res.json({
+      totalMeals: mealTotal.totalMeals,
+      mealsLeft: Math.max(mealTotal.mealsLeft, 0),
+      mealsConsumed: mealTotal.totalMeals - Math.max(mealTotal.mealsLeft, 0)
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+})
 
 // Google Sheets API Setup
 const sheets = google.sheets('v4');
@@ -170,6 +174,6 @@ app.post('/api/export', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT,'localhost', () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
